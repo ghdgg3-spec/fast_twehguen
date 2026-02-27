@@ -76,6 +76,38 @@
       font-size: 11px;
       opacity: .65;
       margin-top: 5px;
+      margin-bottom: 12px;
+    }
+    .remain-live-row {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      background: rgba(0,0,0,.12);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .remain-live-item {
+      flex: 1;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .remain-live-sep {
+      width: 1px;
+      background: rgba(0,0,0,.15);
+    }
+    .rl-label {
+      font-size: 9px;
+      opacity: .6;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .rl-val {
+      font-size: 17px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
     }
 
     /* calendar */
@@ -507,6 +539,17 @@
     <div class="live-box">
       <div class="clock" id="live-clock">00:00:00</div>
       <div class="clock-sub" id="live-date-sub">로딩 중...</div>
+      <div class="remain-live-row">
+        <div class="remain-live-item">
+          <div class="rl-label">오늘 근무</div>
+          <div class="rl-val" id="rl-today">—</div>
+        </div>
+        <div class="remain-live-sep"></div>
+        <div class="remain-live-item">
+          <div class="rl-label">이번 주 남은</div>
+          <div class="rl-val" id="rl-remain">—</div>
+        </div>
+      </div>
     </div>
 
     <!-- Calendar -->
@@ -1030,6 +1073,16 @@ function renderAll() {
 /* ──────────────────────────────────────────
    LIVE CLOCK
 ────────────────────────────────────────── */
+function calcWeekTotal(anchorDate) {
+  const week = weekMonFri(anchorDate);
+  let total = 0;
+  week.forEach(ds => {
+    if (isHoliday(ds) && !isWeekend(ds)) total += 8;
+    else if (logs[ds]) total += calcHours(logs[ds], ds);
+  });
+  return total;
+}
+
 function tickClock() {
   const now = new Date();
   const hh = String(now.getHours()).padStart(2,'0');
@@ -1039,20 +1092,39 @@ function tickClock() {
 
   const today = fmtDate(now);
   const todayLog = logs[today];
+  const inProgress = todayLog && todayLog.startTime && !todayLog.endTime;
+
   let sub = `${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일 (${DAY_KR[now.getDay()]})`;
-  if (todayLog && todayLog.startTime && !todayLog.endTime) {
-    const h = calcHours(todayLog, today);
-    sub += ` · 근무중 ${fmtH(h)}`;
-  }
+  if (inProgress) sub += ' · 근무 중 🟢';
   document.getElementById('live-date-sub').textContent = sub;
 
-  // refresh stats every minute
-  if (ss === '00') renderAll();
-  // refresh today's chip every second if in-progress
-  if (todayLog && todayLog.startTime && !todayLog.endTime) {
-    const h = calcHours(todayLog, today);
-    document.getElementById('chip-today').textContent = fmtH(h);
+  // 매초 실시간 갱신 (근무 중일 때)
+  const todayH = (() => {
+    if (isHoliday(today) && !isWeekend(today)) return 8;
+    if (todayLog) return calcHours(todayLog, today);
+    return 0;
+  })();
+  const totalH = calcWeekTotal(today);
+  const remain = Math.max(0, WEEKLY_TARGET - totalH);
+
+  // live-box 실시간 패널
+  document.getElementById('rl-today').textContent = fmtH(todayH);
+  document.getElementById('rl-remain').textContent = fmtH(remain);
+
+  // 헤더 칩 + 사이드바 (근무 중일 때 매초, 아닐 때 매분)
+  if (inProgress) {
+    document.getElementById('chip-today').textContent = fmtH(todayH);
+    document.getElementById('chip-remain').textContent = fmtH(remain);
+    document.getElementById('wk-total').innerHTML = `${fmtH(totalH)}<small> / 40h</small>`;
+    document.getElementById('wk-remain').innerHTML = `${fmtH(remain)}<small>h</small>`;
+    // 진행률 바도 실시간
+    const pct = Math.min(100, (totalH / WEEKLY_TARGET) * 100);
+    document.getElementById('prog-fill').style.width = pct + '%';
+    document.getElementById('prog-pct').textContent = pct.toFixed(1) + '%';
   }
+
+  // 매분마다 전체 re-render
+  if (ss === '00') renderAll();
 }
 
 /* ──────────────────────────────────────────
