@@ -1,6 +1,7 @@
 // 선택적 근무 트래커 — Scriptable 홈 화면 위젯
 // 복사해서 Scriptable 앱에 붙여넣고 실행하세요.
-// 첫 실행 시 이메일로 OTP 로그인, 이후엔 자동 갱신됩니다.
+// 앱 내 실행 시: 팔레트 선택 → 로그인 (최초 1회 OTP)
+// 위젯 자동 갱신: 5분 간격
 
 const SUPABASE_URL = 'https://osxyfdwmdbaorzomnbhq.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_1Ddi6JkAwadHTidc4JsrRQ_LyrFaGeF';
@@ -8,6 +9,88 @@ const WEEKLY_TARGET = 40;
 
 const K_REFRESH = 'wt_refresh_token';
 const K_EMAIL   = 'wt_email';
+const K_PALETTE = 'wt_palette';
+
+// ── 팔레트 정의 ────────────────────────────────────────────────────────────
+// 각 팔레트는 이미지에서 추출한 색으로 구성됩니다.
+//
+// bg        위젯 배경
+// header    날짜 텍스트
+// label     '오늘', '주간' 레이블
+// value     오늘 시간 숫자
+// barFill   프로그레스 바 채워진 부분
+// barEmpty  프로그레스 바 빈 부분
+// remain    잔여 시간 (목표 미달)
+// done      초과 달성 텍스트
+
+const PALETTES = {
+  // ① Lazy Days — 파스텔: 크림 배경 + 세이지 그린 + 살구·핑크 포인트
+  'Lazy Days': {
+    bg:       '#FFFDE8',
+    header:   '#8BAE96',
+    label:    '#BCA89E',
+    value:    '#4A2E28',
+    barFill:  '#B8D4BC',
+    barEmpty: '#F4D8D0',
+    remain:   '#D47B6A',
+    done:     '#8BAE96',
+  },
+  // ② Nature — 내추럴: 따뜻한 오프화이트 + 세이지 + 앰버 포인트
+  'Nature': {
+    bg:       '#F0EDDE',
+    header:   '#5F8250',
+    label:    '#9AA08A',
+    value:    '#28381E',
+    barFill:  '#82AA6C',
+    barEmpty: '#CEC5A8',
+    remain:   '#C07E34',
+    done:     '#5F8250',
+  },
+  // ③ Fresh — 어스 다크: 짙은 레드브라운 배경 + 세이지 그린 + 스틸블루 포인트
+  'Fresh': {
+    bg:       '#190E08',
+    header:   '#6B8A69',
+    label:    '#7C6A60',
+    value:    '#EFEFE1',
+    barFill:  '#6B8A69',
+    barEmpty: '#3A2418',
+    remain:   '#80B5CE',
+    done:     '#6B8A69',
+  },
+  // ④ Mono — 모노크롬: 순수 흑백 그레이스케일
+  'Mono': {
+    bg:       '#0A0A0A',
+    header:   '#B0B0B0',
+    label:    '#686868',
+    value:    '#FFFFFF',
+    barFill:  '#D0D0D0',
+    barEmpty: '#262626',
+    remain:   '#A0A0A0',
+    done:     '#F0F0F0',
+  },
+};
+
+const PALETTE_NAMES = Object.keys(PALETTES);
+
+function getPalette() {
+  const saved = Keychain.contains(K_PALETTE) ? Keychain.get(K_PALETTE) : null;
+  return PALETTES[saved] || PALETTES['Fresh'];
+}
+
+// ── 팔레트 선택 UI ─────────────────────────────────────────────────────────
+
+async function pickPalette() {
+  const current = Keychain.contains(K_PALETTE) ? Keychain.get(K_PALETTE) : '(없음)';
+  const alert = new Alert();
+  alert.title = '테마 선택';
+  alert.message = `현재: ${current}\n\n원하는 색상 테마를 고르세요`;
+  for (const name of PALETTE_NAMES) alert.addAction(name);
+  alert.addCancelAction('변경 안 함');
+  const idx = await alert.presentAlert();
+  if (idx >= 0 && idx < PALETTE_NAMES.length) {
+    Keychain.set(K_PALETTE, PALETTE_NAMES[idx]);
+  }
+}
 
 // ── 인증 ───────────────────────────────────────────────────────────────────
 
@@ -16,16 +99,16 @@ async function getAccessToken() {
     const rt = Keychain.get(K_REFRESH);
     const at = await refreshSession(rt);
     if (at) return at;
-    Keychain.remove(K_REFRESH); // 만료 → 재로그인
+    Keychain.remove(K_REFRESH);
   }
   return await login();
 }
 
-async function refreshSession(refreshToken) {
+async function refreshSession(rt) {
   const req = new Request(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`);
   req.method = 'POST';
   req.headers = { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY };
-  req.body = JSON.stringify({ refresh_token: refreshToken });
+  req.body = JSON.stringify({ refresh_token: rt });
   try {
     const res = await req.loadJSON();
     if (res.access_token) {
@@ -37,41 +120,34 @@ async function refreshSession(refreshToken) {
 }
 
 async function login() {
-  // 이메일 입력
   const emailAlert = new Alert();
   emailAlert.title = '근무 트래커 로그인';
   emailAlert.message = '가입한 이메일을 입력하세요';
-  const savedEmail = Keychain.contains(K_EMAIL) ? Keychain.get(K_EMAIL) : '';
-  emailAlert.addTextField('이메일', savedEmail);
+  emailAlert.addTextField('이메일', Keychain.contains(K_EMAIL) ? Keychain.get(K_EMAIL) : '');
   emailAlert.addAction('인증코드 전송');
   emailAlert.addCancelAction('취소');
-  const idx = await emailAlert.presentAlert();
-  if (idx === -1) return null;
+  if ((await emailAlert.presentAlert()) === -1) return null;
 
   const email = emailAlert.textFieldValue(0).trim();
   if (!email) return null;
   Keychain.set(K_EMAIL, email);
 
-  // OTP 전송
   const sendReq = new Request(`${SUPABASE_URL}/auth/v1/otp`);
   sendReq.method = 'POST';
   sendReq.headers = { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY };
   sendReq.body = JSON.stringify({ email });
   await sendReq.load();
 
-  // OTP 코드 입력
   const otpAlert = new Alert();
   otpAlert.title = '이메일 인증';
   otpAlert.message = `${email}로 전송된 6자리 코드를 입력하세요`;
   otpAlert.addTextField('코드 입력', '');
   otpAlert.addAction('확인');
   otpAlert.addCancelAction('취소');
-  const otpIdx = await otpAlert.presentAlert();
-  if (otpIdx === -1) return null;
+  if ((await otpAlert.presentAlert()) === -1) return null;
 
   const otp = otpAlert.textFieldValue(0).trim();
 
-  // OTP 검증
   const verifyReq = new Request(`${SUPABASE_URL}/auth/v1/verify`);
   verifyReq.method = 'POST';
   verifyReq.headers = { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY };
@@ -84,11 +160,11 @@ async function login() {
     }
   } catch(e) {}
 
-  const errAlert = new Alert();
-  errAlert.title = '인증 실패';
-  errAlert.message = '코드가 올바르지 않습니다. 다시 실행해 주세요.';
-  errAlert.addAction('확인');
-  await errAlert.presentAlert();
+  const err = new Alert();
+  err.title = '인증 실패';
+  err.message = '코드가 올바르지 않습니다. 다시 실행해 주세요.';
+  err.addAction('확인');
+  await err.presentAlert();
   return null;
 }
 
@@ -100,7 +176,7 @@ function fmtDate(d) {
 
 function getWeekDates(anchor) {
   const d = new Date(anchor);
-  const day = d.getDay(); // 0=일
+  const day = d.getDay();
   const mon = new Date(d);
   mon.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
   return Array.from({ length: 5 }, (_, i) => {
@@ -152,11 +228,12 @@ function fmtH(h) {
 // ── 위젯 UI ────────────────────────────────────────────────────────────────
 
 function buildWidget(todayH, weekTotal, inProgress) {
+  const p = getPalette();
   const remain = WEEKLY_TARGET - weekTotal;
   const pct = Math.min(1, weekTotal / WEEKLY_TARGET);
 
   const w = new ListWidget();
-  w.backgroundColor = new Color('#111f18');
+  w.backgroundColor = new Color(p.bg);
   w.setPadding(14, 16, 14, 16);
 
   // 날짜 헤더
@@ -164,7 +241,7 @@ function buildWidget(todayH, weekTotal, inProgress) {
   const DAY = ['일','월','화','수','목','금','토'];
   const header = w.addText(`${now.getMonth()+1}/${now.getDate()}(${DAY[now.getDay()]})`);
   header.font = Font.mediumSystemFont(11);
-  header.textColor = new Color('#7dd3a8');
+  header.textColor = new Color(p.header);
 
   w.addSpacer(8);
 
@@ -172,30 +249,40 @@ function buildWidget(todayH, weekTotal, inProgress) {
   const row = w.addStack();
   row.layoutHorizontally();
   row.centerAlignContent();
-  const dot = row.addText(inProgress ? '🟢 ' : '  ');
-  dot.font = Font.systemFont(11);
+  const dot = row.addText(inProgress ? '● ' : '○ ');
+  dot.font = Font.systemFont(10);
+  dot.textColor = inProgress ? new Color(p.done) : new Color(p.label);
   const lbl = row.addText('오늘  ');
   lbl.font = Font.systemFont(12);
-  lbl.textColor = new Color('#9ca3af');
+  lbl.textColor = new Color(p.label);
   const val = row.addText(fmtH(todayH));
   val.font = Font.boldSystemFont(14);
-  val.textColor = Color.white();
+  val.textColor = new Color(p.value);
 
   w.addSpacer(8);
 
-  // 주간 진행률
+  // 주간 진행률 레이블
   const wkLabel = w.addText(`주간  ${fmtH(weekTotal)} / 40h`);
   wkLabel.font = Font.systemFont(11);
-  wkLabel.textColor = new Color('#9ca3af');
+  wkLabel.textColor = new Color(p.label);
 
   w.addSpacer(3);
 
   // 텍스트 프로그레스 바
   const BAR = 14;
   const filled = Math.round(pct * BAR);
-  const bar = w.addText('█'.repeat(filled) + '░'.repeat(BAR - filled));
-  bar.font = Font.monospacedSystemFont(9);
-  bar.textColor = new Color('#4ade80');
+  const barFilled = w.addText('█'.repeat(filled));
+  barFilled.font = Font.monospacedSystemFont(9);
+  barFilled.textColor = new Color(p.barFill);
+
+  // 빈 부분을 같은 줄에 이어서 표현 (Stack으로 연결)
+  // Scriptable은 인라인 스타일이 없으므로 Stack 사용
+  // 단순하게 한 줄 텍스트로 구성 (색 분리 불가 → 빈 칸은 label 색)
+  if (filled < BAR) {
+    const barEmpty = w.addText('░'.repeat(BAR - filled));
+    barEmpty.font = Font.monospacedSystemFont(9);
+    barEmpty.textColor = new Color(p.barEmpty);
+  }
 
   w.addSpacer(8);
 
@@ -203,29 +290,30 @@ function buildWidget(todayH, weekTotal, inProgress) {
   if (remain > 0) {
     const r = w.addText(`잔여  ${fmtH(remain)}`);
     r.font = Font.boldSystemFont(15);
-    r.textColor = new Color('#fbbf24');
+    r.textColor = new Color(p.remain);
   } else {
     const r = w.addText(`초과  ${fmtH(-remain)} ✓`);
     r.font = Font.boldSystemFont(15);
-    r.textColor = new Color('#4ade80');
+    r.textColor = new Color(p.done);
   }
 
-  w.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000); // 5분마다 갱신
+  w.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000);
   return w;
 }
 
-function buildMsgWidget(title, sub, color) {
+function buildMsgWidget(title, sub) {
+  const p = getPalette();
   const w = new ListWidget();
-  w.backgroundColor = new Color('#111f18');
+  w.backgroundColor = new Color(p.bg);
   w.setPadding(14, 16, 14, 16);
   const t = w.addText(title);
   t.font = Font.boldSystemFont(13);
-  t.textColor = new Color(color || '#ffffff');
+  t.textColor = new Color(p.remain);
   if (sub) {
     w.addSpacer(4);
     const s = w.addText(sub);
     s.font = Font.systemFont(11);
-    s.textColor = new Color('#9ca3af');
+    s.textColor = new Color(p.label);
   }
   return w;
 }
@@ -233,9 +321,14 @@ function buildMsgWidget(title, sub, color) {
 // ── 메인 ───────────────────────────────────────────────────────────────────
 
 async function main() {
+  // 앱 내 실행 시: 팔레트 선택 먼저
+  if (config.runsInApp) {
+    await pickPalette();
+  }
+
   const token = await getAccessToken();
   if (!token) {
-    const w = buildMsgWidget('로그인 필요', '위젯을 탭하세요', '#ef4444');
+    const w = buildMsgWidget('로그인 필요', '위젯을 탭하세요');
     Script.setWidget(w);
     if (config.runsInApp) await w.presentSmall();
     Script.complete();
@@ -251,7 +344,7 @@ async function main() {
     if (!Array.isArray(logs)) throw new Error('invalid');
   } catch(e) {
     Keychain.remove(K_REFRESH);
-    const w = buildMsgWidget('불러오기 실패', '다시 탭하세요', '#ef4444');
+    const w = buildMsgWidget('불러오기 실패', '다시 탭하세요');
     Script.setWidget(w);
     if (config.runsInApp) await w.presentSmall();
     Script.complete();
@@ -263,6 +356,7 @@ async function main() {
 
   let weekTotal = 0;
   for (const ds of weekDates) weekTotal += calcHours(logMap[ds]);
+
   const todayLog = logMap[today];
   const todayH   = calcHours(todayLog);
   const inProgress = !!(todayLog && todayLog.start_time && !todayLog.end_time);
