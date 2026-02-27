@@ -604,9 +604,82 @@
       .log-card { grid-template-columns: 1fr auto; }
       .log-date-col { display: none; }
     }
+    /* ───── Login Overlay ───── */
+    #login-overlay {
+      position: fixed; inset: 0;
+      background: var(--gray-100);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999;
+    }
+    .login-card {
+      background: var(--dark);
+      border-radius: 20px;
+      padding: 40px 36px;
+      width: 100%; max-width: 380px;
+      box-shadow: 0 24px 64px rgba(0,30,15,.3);
+      color: rgba(255,255,255,.92);
+      text-align: center;
+    }
+    .login-card h2 { font-size: 22px; font-weight: 700; color: var(--blue); margin-bottom: 6px; }
+    .login-card p { font-size: 13px; color: rgba(255,255,255,.5); margin-bottom: 28px; }
+    .login-email-input {
+      width: 100%;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 10px;
+      padding: 12px 14px; font-size: 14px; color: #fff;
+      outline: none; margin-bottom: 12px;
+    }
+    .login-email-input:focus { border-color: var(--blue); }
+    .login-email-input::placeholder { color: rgba(255,255,255,.35); }
+    .login-btn {
+      width: 100%;
+      background: var(--blue); color: var(--dark);
+      border: none; border-radius: 10px;
+      padding: 12px; font-size: 14px; font-weight: 700;
+      cursor: pointer; transition: background .15s;
+    }
+    .login-btn:hover { background: var(--blue-dark); }
+    .login-btn:disabled { opacity: .5; cursor: default; }
+    .login-sent {
+      display: none; margin-top: 20px; padding: 14px;
+      background: rgba(205,224,81,.12); border-radius: 10px;
+      font-size: 13px; color: var(--blue); line-height: 1.6;
+    }
+    /* User bar in sidebar */
+    .user-bar {
+      padding: 14px 18px 18px;
+      display: flex; align-items: center; gap: 10px;
+      border-top: 1px solid rgba(255,255,255,.08);
+    }
+    .user-bar-email {
+      flex: 1; font-size: 11px; color: rgba(255,255,255,.4);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .logout-btn {
+      background: rgba(255,255,255,.08); border: none; border-radius: 7px;
+      padding: 5px 10px; font-size: 11px; color: rgba(255,255,255,.5);
+      cursor: pointer; white-space: nowrap;
+    }
+    .logout-btn:hover { background: rgba(255,255,255,.15); color: #fff; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+
+<!-- ─── LOGIN OVERLAY ─── -->
+<div id="login-overlay">
+  <div class="login-card">
+    <h2>선택적 근무 트래커</h2>
+    <p>이메일로 로그인 링크를 받아요<br><span style="font-size:11px;opacity:.6;">링크를 클릭하면 자동으로 로그인돼요</span></p>
+    <input class="login-email-input" id="login-email" type="email" placeholder="이메일 입력" />
+    <button class="login-btn" id="login-btn" onclick="sendMagicLink()">링크 보내기</button>
+    <div class="login-sent" id="login-sent">
+      ✉️ 이메일을 확인해주세요!<br>
+      <span style="color:rgba(255,255,255,.5);font-size:12px;">메일함에서 링크를 클릭하면 로그인돼요</span>
+    </div>
+  </div>
+</div>
 
 <div class="shell">
   <!-- ─── SIDEBAR ─── -->
@@ -679,6 +752,12 @@
     <div class="core-badge">
       <strong>코어타임 10:00 – 15:00</strong>
       <span>주 40h 목표 · 점심 12:00–13:00 자동 제외</span>
+    </div>
+
+    <!-- User info -->
+    <div class="user-bar" id="user-bar" style="display:none;">
+      <span class="user-bar-email" id="user-bar-email"></span>
+      <button class="logout-btn" onclick="signOut()">로그아웃</button>
     </div>
 
   </aside>
@@ -793,27 +872,85 @@ const HOLIDAYS = {
 };
 const DAY_KR = ['일','월','화','수','목','금','토'];
 const DAY_FULL = ['일요일','월요일','화요일','수요일','목요일','금요일','토요일'];
-const STORAGE_KEY = 'flex_work_logs_v2';
 const WEEKLY_TARGET = 40;
+
+/* ──────────────────────────────────────────
+   SUPABASE
+────────────────────────────────────────── */
+const SUPABASE_URL = 'https://osxyfdwmdbaorzomnbhq.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_1Ddi6JkAwadHTidc4JsrRQ_LyrFaGeF';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+
+async function loadLogsFromDB() {
+  const { data, error } = await sb.from('work_logs').select('*').eq('user_id', currentUser.id);
+  if (error) { console.error('loadLogs error:', error); return; }
+  logs = {};
+  data.forEach(row => {
+    logs[row.log_date] = {
+      type: row.type,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      extMins: row.ext_mins || 0,
+      note: row.note || ''
+    };
+  });
+  renderAll();
+}
+
+async function saveLog(ds, log) {
+  const { error } = await sb.from('work_logs').upsert({
+    user_id: currentUser.id,
+    log_date: ds,
+    type: log.type,
+    start_time: log.startTime || null,
+    end_time: log.endTime || null,
+    ext_mins: log.extMins || 0,
+    note: log.note || ''
+  }, { onConflict: 'user_id,log_date' });
+  if (error) { console.error('saveLog error:', error); toast('저장 실패'); }
+}
+
+async function deleteLogFromDB(ds) {
+  const { error } = await sb.from('work_logs').delete()
+    .eq('user_id', currentUser.id).eq('log_date', ds);
+  if (error) { console.error('deleteLog error:', error); toast('삭제 실패'); }
+}
+
+async function sendMagicLink() {
+  const email = document.getElementById('login-email').value.trim();
+  if (!email) { toast('이메일을 입력해주세요'); return; }
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true; btn.textContent = '전송 중...';
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.href }
+  });
+  btn.disabled = false; btn.textContent = '링크 보내기';
+  if (error) { toast('오류: ' + error.message); return; }
+  document.getElementById('login-sent').style.display = 'block';
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+  currentUser = null;
+  logs = {};
+  document.getElementById('login-overlay').style.display = 'flex';
+  document.getElementById('user-bar').style.display = 'none';
+  renderAll();
+}
 
 /* ──────────────────────────────────────────
    STATE
 ────────────────────────────────────────── */
-let logs = loadLogs();            // { 'YYYY-MM-DD': {startTime, endTime, type, extMins, note} }
+let logs = {};                    // { 'YYYY-MM-DD': {startTime, endTime, type, extMins, note} }
 let calYear, calMonth;            // displayed calendar month
 let selectedDate = fmtDate(new Date());
 let editingDate = null;           // currently editing a log key
 let selectedType = '일반';
 let targetEndTime = '18:00';      // 퇴근 예정 시간
 let todayPanelOpen = false;       // 달력 오늘 날짜 패널 열림 여부
-
-function loadLogs() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
-  catch { return {}; }
-}
-function saveLogs() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
-}
 
 /* ──────────────────────────────────────────
    DATE HELPERS
@@ -1352,10 +1489,10 @@ function editLog(ds) {
   document.querySelector('.form-card').scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 
-function deleteLog(ds) {
+async function deleteLog(ds) {
   if (!confirm(`${ds} 기록을 삭제할까요?`)) return;
   delete logs[ds];
-  saveLogs();
+  await deleteLogFromDB(ds);
   renderAll();
   toast('기록이 삭제되었어요');
 }
@@ -1367,7 +1504,7 @@ function cancelEdit() {
   document.getElementById('form-preview').style.display = 'none';
 }
 
-function submitLog() {
+async function submitLog() {
   const ds = document.getElementById('f-date').value;
   if (!ds) { toast('날짜를 선택해주세요'); return; }
 
@@ -1388,7 +1525,7 @@ function submitLog() {
   }
 
   logs[ds] = log;
-  saveLogs();
+  await saveLog(ds, log);
 
   // Select the week of the saved date
   selectedDate = ds;
@@ -1451,7 +1588,23 @@ function submitLog() {
   document.getElementById('submit-btn').addEventListener('click', submitLog);
   document.getElementById('cancel-btn').addEventListener('click', cancelEdit);
 
-  renderAll();
+  // Auth state handler
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (session?.user) {
+      currentUser = session.user;
+      document.getElementById('login-overlay').style.display = 'none';
+      document.getElementById('user-bar').style.display = 'flex';
+      document.getElementById('user-bar-email').textContent = session.user.email;
+      await loadLogsFromDB();
+    } else {
+      currentUser = null;
+      logs = {};
+      document.getElementById('login-overlay').style.display = 'flex';
+      document.getElementById('user-bar').style.display = 'none';
+      renderAll();
+    }
+  });
+
   tickClock();
   setInterval(tickClock, 1000);
 })();
