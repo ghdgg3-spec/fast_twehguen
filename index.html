@@ -888,6 +888,51 @@ const SUPABASE_URL = 'https://osxyfdwmdbaorzomnbhq.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_1Ddi6JkAwadHTidc4JsrRQ_LyrFaGeF';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+  // ✅ Magic Link (이메일 로그인 링크) 보내기
+async function sendMagicLink() {
+  const emailEl = document.getElementById('magic-email');
+  const btn = document.getElementById('magic-btn');
+  const sentEl = document.getElementById('login-sent');
+  const errEl = document.getElementById('login-error');
+
+  const email = (emailEl?.value || '').trim();
+
+  // UI 초기화
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+  if (sentEl) sentEl.style.display = 'none';
+
+  if (!email) {
+    if (errEl) {
+      errEl.textContent = '이메일을 입력해주세요.';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+
+  try {
+    if (btn) btn.disabled = true;
+
+    const { error } = await sb.auth.signInWithOtp({
+      email,
+      options: {
+        // ✅ 메일 링크 클릭 후 다시 돌아올 주소 (배포 도메인)
+        emailRedirectTo: window.location.origin
+      }
+    });
+
+    if (error) throw error;
+
+    if (sentEl) sentEl.style.display = 'block';
+  } catch (e) {
+    if (errEl) {
+      errEl.textContent = `전송 실패: ${e?.message || e}`;
+      errEl.style.display = 'block';
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 let currentUser = null;
 
 async function loadLogsFromDB() {
