@@ -180,6 +180,83 @@
     }
     .cd.holiday.has-log::after { background: #ff9090; }
 
+    /* ── 퇴근 예정 위젯 (live-box 내부) ── */
+    .end-wrap {
+      margin-top: 10px;
+      background: rgba(0,0,0,.13);
+      border-radius: 8px;
+      padding: 9px 12px;
+    }
+    .end-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+    .end-label {
+      font-size: 10px;
+      font-weight: 600;
+      opacity: .6;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--dark);
+    }
+    .end-input {
+      background: rgba(0,0,0,.18);
+      border: 1px solid rgba(0,0,0,.18);
+      border-radius: 6px;
+      color: var(--dark);
+      font-size: 13px;
+      font-weight: 800;
+      padding: 3px 8px;
+      outline: none;
+      cursor: pointer;
+      font-family: inherit;
+      font-variant-numeric: tabular-nums;
+    }
+    .end-input::-webkit-calendar-picker-indicator { opacity: .35; cursor: pointer; }
+    .end-result {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--dark);
+      opacity: .55;
+      min-height: 16px;
+    }
+    .end-result.active { opacity: 1; }
+    .end-result.over { opacity: 1; }
+
+    /* ── 오늘 상세 패널 (달력 아래) ── */
+    .today-panel {
+      display: none;
+      margin-top: 10px;
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .today-panel.open { display: block; }
+    .tp-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+    .tp-row span { opacity: .55; }
+    .tp-row b { font-weight: 700; }
+    .tp-divider { height: 1px; background: rgba(255,255,255,.1); margin: 7px 0; }
+    .tp-status {
+      margin-top: 8px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 800;
+      padding: 6px 10px;
+      border-radius: 7px;
+      background: rgba(205,224,81,.15);
+      color: var(--blue);
+    }
+    .tp-status.over { background: rgba(34,197,94,.15); color: #6ee7a0; }
+
     /* week bars */
     .week-section h3 {
       font-size: 12px;
@@ -550,6 +627,14 @@
           <div class="rl-val" id="rl-remain">—</div>
         </div>
       </div>
+      <!-- 퇴근 예정 위젯 -->
+      <div class="end-wrap">
+        <div class="end-top">
+          <span class="end-label">퇴근 예정</span>
+          <input type="time" id="target-end" value="18:00" class="end-input">
+        </div>
+        <div class="end-result" id="end-result">출근 기록이 있으면 계산돼요</div>
+      </div>
     </div>
 
     <!-- Calendar -->
@@ -563,6 +648,15 @@
         <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
       </div>
       <div class="cal-days" id="cal-days"></div>
+      <!-- 오늘 날짜 클릭 시 상세 패널 -->
+      <div class="today-panel" id="today-panel">
+        <div class="tp-row"><span>출근</span><b id="tp-start">—</b></div>
+        <div class="tp-row"><span>퇴근 예정</span><b id="tp-end-val">—</b></div>
+        <div class="tp-divider"></div>
+        <div class="tp-row"><span>오늘 예상</span><b id="tp-today-h">—</b></div>
+        <div class="tp-row"><span>이번 주 예상</span><b id="tp-week-h">—</b></div>
+        <div class="tp-status" id="tp-status">—</div>
+      </div>
     </div>
 
     <!-- Weekly bars -->
@@ -710,6 +804,8 @@ let calYear, calMonth;            // displayed calendar month
 let selectedDate = fmtDate(new Date());
 let editingDate = null;           // currently editing a log key
 let selectedType = '일반';
+let targetEndTime = '18:00';      // 퇴근 예정 시간
+let todayPanelOpen = false;       // 달력 오늘 날짜 패널 열림 여부
 
 function loadLogs() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
@@ -842,8 +938,20 @@ function renderCalendar() {
 
   document.querySelectorAll('.cd:not(.other)').forEach(el => {
     el.addEventListener('click', () => {
-      selectedDate = el.dataset.date;
-      document.getElementById('f-date').value = el.dataset.date;
+      const clickedDate = el.dataset.date;
+      const todayStr = fmtDate(new Date());
+      selectedDate = clickedDate;
+      document.getElementById('f-date').value = clickedDate;
+
+      // 오늘 날짜 클릭 → 상세 패널 토글 / 다른 날짜 → 패널 닫기
+      if (clickedDate === todayStr) {
+        todayPanelOpen = !todayPanelOpen;
+      } else {
+        todayPanelOpen = false;
+      }
+      document.getElementById('today-panel').classList.toggle('open', todayPanelOpen);
+      if (todayPanelOpen) updateTodayPanel();
+
       renderAll();
     });
   });
@@ -1071,6 +1179,75 @@ function renderAll() {
 }
 
 /* ──────────────────────────────────────────
+   퇴근 예정 계산
+────────────────────────────────────────── */
+function calcTargetEnd() {
+  const today = fmtDate(new Date());
+  const todayLog = logs[today];
+  if (!targetEndTime || !todayLog || !todayLog.startTime) return null;
+
+  // 오늘 예상 근무 (rawCalc이 점심 자동 제외)
+  const todayH = rawCalc(todayLog.startTime, targetEndTime, todayLog.extMins || 0);
+
+  // 이번 주 오늘 제외 누적
+  const week = weekMonFri(today);
+  let weekExcluding = 0;
+  week.forEach(ds => {
+    if (ds === today) return;
+    if (isHoliday(ds) && !isWeekend(ds)) weekExcluding += 8;
+    else if (logs[ds]) weekExcluding += calcHours(logs[ds], ds);
+  });
+
+  const weekTotal = weekExcluding + todayH;
+  const diff = weekTotal - WEEKLY_TARGET; // 양수=초과, 음수=부족
+  return { todayH, weekTotal, diff, startTime: todayLog.startTime };
+}
+
+function updateEndWidget() {
+  const el = document.getElementById('end-result');
+  const res = calcTargetEnd();
+  if (!res) {
+    el.textContent = '출근 기록이 있으면 계산돼요';
+    el.className = 'end-result';
+    return;
+  }
+  if (res.diff >= 0) {
+    el.textContent = `주간 ${fmtH(res.weekTotal)} · ${fmtH(res.diff)} 초과 ✓`;
+    el.className = 'end-result over';
+  } else {
+    el.textContent = `주간 ${fmtH(res.weekTotal)} · 잔여 ${fmtH(-res.diff)}`;
+    el.className = 'end-result active';
+  }
+}
+
+function updateTodayPanel() {
+  if (!todayPanelOpen) return;
+  const today = fmtDate(new Date());
+  const todayLog = logs[today];
+  document.getElementById('tp-start').textContent = todayLog?.startTime || '—';
+  document.getElementById('tp-end-val').textContent = targetEndTime;
+
+  const res = calcTargetEnd();
+  if (!res) {
+    document.getElementById('tp-today-h').textContent = '—';
+    document.getElementById('tp-week-h').textContent = '—';
+    document.getElementById('tp-status').textContent = '출근 기록이 없어요';
+    document.getElementById('tp-status').className = 'tp-status';
+    return;
+  }
+  document.getElementById('tp-today-h').textContent = fmtH(res.todayH);
+  document.getElementById('tp-week-h').textContent = `${fmtH(res.weekTotal)} / 40h`;
+  const statusEl = document.getElementById('tp-status');
+  if (res.diff >= 0) {
+    statusEl.textContent = `${fmtH(res.diff)} 초과 ✓ 퇴근 가능!`;
+    statusEl.className = 'tp-status over';
+  } else {
+    statusEl.textContent = `잔여 ${fmtH(-res.diff)}`;
+    statusEl.className = 'tp-status';
+  }
+}
+
+/* ──────────────────────────────────────────
    LIVE CLOCK
 ────────────────────────────────────────── */
 function calcWeekTotal(anchorDate) {
@@ -1122,6 +1299,10 @@ function tickClock() {
     document.getElementById('prog-fill').style.width = pct + '%';
     document.getElementById('prog-pct').textContent = pct.toFixed(1) + '%';
   }
+
+  // 퇴근 예정 위젯 매초 업데이트
+  updateEndWidget();
+  updateTodayPanel();
 
   // 매분마다 전체 re-render
   if (ss === '00') renderAll();
@@ -1257,6 +1438,13 @@ function submitLog() {
   // Time inputs preview
   ['f-start','f-end','f-ext'].forEach(id => {
     document.getElementById(id).addEventListener('input', updatePreview);
+  });
+
+  // 퇴근 예정 시간 입력
+  document.getElementById('target-end').addEventListener('change', e => {
+    targetEndTime = e.target.value;
+    updateEndWidget();
+    updateTodayPanel();
   });
 
   // Submit
