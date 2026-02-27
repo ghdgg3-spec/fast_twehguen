@@ -6,16 +6,17 @@
   <title>선택적 근무 트래커</title>
   <style>
     :root {
-      --blue: #1b1bff;
-      --blue-dark: #0000cc;
-      --blue-mid: #2d2df0;
-      --dark: #111118;
+      --blue: #CDE051;        /* lime accent */
+      --blue-dark: #b8cc38;   /* lime dark */
+      --blue-mid: #d5e96a;    /* lime mid */
+      --dark: #243830;        /* dark forest green */
+      --dark-mid: #2f4a3e;    /* slightly lighter dark green */
       --white: #ffffff;
-      --gray-50: #f8f8fc;
-      --gray-100: #f0f0f8;
-      --gray-200: #e2e2ef;
-      --gray-400: #9898b0;
-      --gray-600: #5a5a72;
+      --gray-50: #eef6f1;     /* mint tint */
+      --gray-100: #e3f0eb;    /* mint */
+      --gray-200: #cce0d6;    /* mint border */
+      --gray-400: #7aA090;    /* muted green-gray */
+      --gray-600: #4a6b5c;    /* dark muted green */
       --green: #22c55e;
       --yellow: #f59e0b;
       --red: #ef4444;
@@ -25,7 +26,7 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
-      background: var(--blue);
+      background: var(--gray-100);
       min-height: 100vh;
       display: flex;
       align-items: flex-start;
@@ -42,14 +43,14 @@
       overflow: hidden;
       display: grid;
       grid-template-columns: 290px 1fr;
-      box-shadow: 0 24px 64px rgba(0,0,20,.35);
+      box-shadow: 0 24px 64px rgba(0,30,15,.18);
       min-height: 700px;
     }
 
     /* ───── Sidebar ───── */
     .sidebar {
       background: var(--dark);
-      color: var(--white);
+      color: rgba(255,255,255,.92);
       display: flex;
       flex-direction: column;
       gap: 24px;
@@ -62,6 +63,7 @@
       background: var(--blue);
       border-radius: 12px;
       padding: 16px 18px;
+      color: var(--dark);
     }
     .live-box .clock {
       font-size: 30px;
@@ -128,8 +130,8 @@
     }
     .cd:hover { background: rgba(255,255,255,.12); }
     .cd.other { opacity: .25; pointer-events: none; }
-    .cd.today { background: var(--white); color: var(--dark); font-weight: 800; }
-    .cd.selected { background: rgba(255,255,255,.22); font-weight: 600; }
+    .cd.today { background: var(--blue); color: var(--dark); font-weight: 800; }
+    .cd.selected { background: rgba(205,224,81,.3); font-weight: 600; }
     .cd.holiday { color: #ff7070; }
     .cd.sat { color: rgba(255,255,255,.45); }
     .cd.sun { color: #ff9090; }
@@ -142,7 +144,7 @@
       width: 4px;
       height: 4px;
       border-radius: 50%;
-      background: var(--green);
+      background: var(--blue);
     }
     .cd.holiday.has-log::after { background: #ff9090; }
 
@@ -195,15 +197,16 @@
       transition: height .4s ease;
       background: rgba(255,255,255,.3);
     }
-    .bar-fill.done { background: var(--green); }
-    .bar-fill.partial { background: var(--yellow); }
+    .bar-fill.done { background: var(--blue); }
+    .bar-fill.partial { background: rgba(205,224,81,.55); }
     .bar-fill.active { background: var(--blue); }
     .bar-lbl { font-size: 10px; opacity: .55; }
     .bar-h { font-size: 9px; opacity: .45; }
 
     /* core time badge */
     .core-badge {
-      background: rgba(255,255,255,.08);
+      background: rgba(205,224,81,.15);
+      border: 1px solid rgba(205,224,81,.3);
       border-radius: 8px;
       padding: 10px 14px;
       font-size: 11.5px;
@@ -229,6 +232,7 @@
       margin-bottom: 20px;
     }
     .mh-left h1 { font-size: 20px; font-weight: 800; color: var(--dark); }
+    .main { background: var(--white); }
     .mh-left .sub { font-size: 12px; color: var(--gray-400); margin-top: 3px; }
     .chips { display: flex; gap: 8px; flex-wrap: wrap; }
     .chip {
@@ -241,7 +245,7 @@
     }
     .chip.accent {
       background: var(--dark);
-      color: white;
+      color: var(--blue);
     }
     .chip strong { display: block; font-size: 15px; }
 
@@ -266,7 +270,7 @@
       background: var(--blue);
       transition: width .5s ease;
     }
-    .prog-fill.done { background: var(--green); }
+    .prog-fill.done { background: var(--blue); }
     .prog-fill.over { background: var(--red); }
 
     /* form */
@@ -307,7 +311,7 @@
       outline: none;
       transition: border-color .15s;
     }
-    .fg input:focus, .fg select:focus { border-color: var(--blue); }
+    .fg input:focus, .fg select:focus { border-color: var(--dark); outline: none; }
     .fg input[type=number] { width: 76px; }
 
     .type-btns { display: flex; gap: 5px; flex-wrap: wrap; }
@@ -322,7 +326,7 @@
       transition: all .15s;
       color: var(--gray-600);
     }
-    .tb.on { background: var(--dark); color: white; border-color: var(--dark); }
+    .tb.on { background: var(--dark); color: var(--blue); border-color: var(--dark); }
     .tb:hover:not(.on) { border-color: #aaa; }
 
     .form-preview {
@@ -336,7 +340,7 @@
     }
     .submit-btn {
       background: var(--dark);
-      color: white;
+      color: var(--blue);
       border: none;
       border-radius: 8px;
       padding: 8px 18px;
@@ -373,7 +377,7 @@
       padding: 40px 20px;
       color: var(--gray-400);
       font-size: 14px;
-      background: var(--gray-50);
+      background: #f4faf6;
       border-radius: var(--card-r);
       border: 1.5px dashed var(--gray-200);
     }
@@ -390,7 +394,7 @@
       transition: border-color .15s, box-shadow .15s;
     }
     .log-card:hover { border-color: #c5c5dd; box-shadow: 0 2px 10px rgba(0,0,30,.06); }
-    .log-card.today-card { border-color: var(--blue); }
+    .log-card.today-card { border-color: var(--blue); background: #f9fce8; }
 
     .log-date-col { }
     .log-date-col .ld { font-size: 18px; font-weight: 800; color: var(--dark); line-height: 1; }
@@ -413,11 +417,11 @@
       font-size: 10.5px;
       font-weight: 700;
     }
-    .badge-연차 { background: #dbeafe; color: #1d4ed8; }
-    .badge-조퇴 { background: #fef3c7; color: #b45309; }
-    .badge-외출 { background: #d1fae5; color: #065f46; }
+    .badge-연차 { background: #e3f0eb; color: #243830; }
+    .badge-조퇴 { background: #fef3c7; color: #7a5c00; }
+    .badge-외출 { background: #eef8e0; color: #3a5c20; }
     .badge-공휴일 { background: #fee2e2; color: #b91c1c; }
-    .badge-active { background: #ede9fe; color: #6d28d9; }
+    .badge-active { background: #cde051; color: #243830; }
     .log-note { font-size: 11px; color: var(--gray-400); }
 
     .log-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
@@ -438,7 +442,7 @@
       font-size: 13px;
       transition: all .12s;
     }
-    .icon-btn:hover { background: var(--gray-100); color: var(--dark); }
+    .icon-btn:hover { background: var(--gray-100); color: var(--dark-mid); }
     .icon-btn.del:hover { background: #fee2e2; color: var(--red); }
 
     /* section divider */
