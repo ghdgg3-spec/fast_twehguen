@@ -671,13 +671,14 @@
 <div id="login-overlay">
   <div class="login-card">
     <h2>선택적 근무 트래커</h2>
-    <p>이메일로 로그인 링크를 받아요<br><span style="font-size:11px;opacity:.6;">링크를 클릭하면 자동으로 로그인돼요</span></p>
-    <input class="login-email-input" id="login-email" type="email" placeholder="이메일 입력" />
-    <button class="login-btn" id="login-btn" onclick="sendMagicLink()">링크 보내기</button>
-    <div class="login-sent" id="login-sent">
-      ✉️ 이메일을 확인해주세요!<br>
-      <span style="color:rgba(255,255,255,.5);font-size:12px;">메일함에서 링크를 클릭하면 로그인돼요</span>
-    </div>
+    <p id="login-desc">이메일과 비밀번호로 로그인하세요</p>
+    <input class="login-email-input" id="login-email" type="email" placeholder="이메일" autocomplete="email" />
+    <input class="login-email-input" id="login-pw" type="password" placeholder="비밀번호" autocomplete="current-password" />
+    <button class="login-btn" id="login-btn" onclick="doLogin()">로그인</button>
+    <div id="login-error" style="display:none;margin-top:8px;font-size:12px;color:#f87171;text-align:center;"></div>
+    <p style="text-align:center;margin-top:14px;font-size:12px;color:rgba(255,255,255,.4);">
+      <span id="login-mode-txt">계정이 없으신가요?</span>&nbsp;<button onclick="toggleLoginMode()" style="background:none;border:none;color:var(--blue);cursor:pointer;font-size:12px;padding:0;">가입하기</button>
+    </p>
   </div>
 </div>
 
@@ -918,18 +919,46 @@ async function deleteLogFromDB(ds) {
   if (error) { console.error('deleteLog error:', error); toast('삭제 실패'); }
 }
 
-async function sendMagicLink() {
+let loginMode = 'signin';
+
+function toggleLoginMode() {
+  loginMode = loginMode === 'signin' ? 'signup' : 'signin';
+  const isSignup = loginMode === 'signup';
+  document.getElementById('login-desc').textContent = isSignup ? '이메일과 비밀번호로 가입하세요' : '이메일과 비밀번호로 로그인하세요';
+  document.getElementById('login-btn').textContent = isSignup ? '가입하기' : '로그인';
+  document.getElementById('login-mode-txt').textContent = isSignup ? '이미 계정이 있으신가요?' : '계정이 없으신가요?';
+  document.querySelector('[onclick="toggleLoginMode()"]').textContent = isSignup ? '로그인' : '가입하기';
+  document.getElementById('login-error').style.display = 'none';
+}
+
+async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
-  if (!email) { toast('이메일을 입력해주세요'); return; }
+  const pw = document.getElementById('login-pw').value;
+  if (!email || !pw) { showLoginError('이메일과 비밀번호를 입력해주세요'); return; }
+
   const btn = document.getElementById('login-btn');
-  btn.disabled = true; btn.textContent = '전송 중...';
-  const { error } = await sb.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.href }
-  });
-  btn.disabled = false; btn.textContent = '링크 보내기';
-  if (error) { toast('오류: ' + error.message); return; }
-  document.getElementById('login-sent').style.display = 'block';
+  btn.disabled = true;
+
+  let result;
+  if (loginMode === 'signin') {
+    result = await sb.auth.signInWithPassword({ email, password: pw });
+  } else {
+    result = await sb.auth.signUp({ email, password: pw });
+  }
+
+  btn.disabled = false;
+
+  if (result.error) {
+    showLoginError(result.error.message);
+  } else if (loginMode === 'signup' && !result.data?.session) {
+    showLoginError('가입 확인 이메일을 확인해주세요 ✉️');
+  }
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg;
+  el.style.display = 'block';
 }
 
 async function signOut() {
