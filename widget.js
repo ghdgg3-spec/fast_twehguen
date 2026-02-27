@@ -192,7 +192,9 @@ async function fetchLogs(token, dates) {
     + `&select=log_date,type,start_time,end_time,ext_mins`;
   const req = new Request(url);
   req.headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${token}` };
-  return await req.loadJSON();
+  const raw = await req.loadString();
+  if (raw.trimStart().startsWith('<')) throw new Error('unexpected HTML response');
+  return JSON.parse(raw);
 }
 
 // ── 시간 계산 ──────────────────────────────────────────────────────────────
