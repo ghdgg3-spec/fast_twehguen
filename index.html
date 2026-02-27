@@ -843,6 +843,7 @@ function renderCalendar() {
   document.querySelectorAll('.cd:not(.other)').forEach(el => {
     el.addEventListener('click', () => {
       selectedDate = el.dataset.date;
+      document.getElementById('f-date').value = el.dataset.date;
       renderAll();
     });
   });
@@ -915,7 +916,6 @@ function renderHeaderStats(totalH, remain) {
   if (isHoliday(today) && !isWeekend(today)) todayH = 8;
   else if (logs[today]) todayH = calcHours(logs[today], today);
   document.getElementById('chip-today').textContent = fmtH(todayH);
-  document.getElementById('header-remaining').textContent = fmtH(remain);
 }
 
 /* ──────────────────────────────────────────
