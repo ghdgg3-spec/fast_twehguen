@@ -671,17 +671,23 @@
 <div id="login-overlay">
   <div class="login-card">
     <h2>선택적 근무 트래커</h2>
-    <p id="login-desc">이메일과 비밀번호로 로그인하세요</p>
-    <input class="login-email-input" id="login-email" type="email" placeholder="이메일" autocomplete="email" />
-    <input class="login-email-input" id="login-pw" type="password" placeholder="비밀번호" autocomplete="current-password" />
-    <button class="login-btn" id="login-btn" onclick="doLogin()">로그인</button>
-    <div id="login-error" style="display:none;margin-top:8px;font-size:12px;color:#f87171;text-align:center;"></div>
-    <p style="text-align:center;margin-top:14px;font-size:12px;color:rgba(255,255,255,.4);">
-      <span id="login-mode-txt">계정이 없으신가요?</span>&nbsp;<button onclick="toggleLoginMode()" style="background:none;border:none;color:var(--blue);cursor:pointer;font-size:12px;padding:0;">가입하기</button>
+
+    <p>
+      이메일로 로그인 링크를 받아요<br>
+      <span style="font-size:11px;opacity:.6;">메일의 링크를 클릭하면 자동 로그인돼요</span>
     </p>
+
+    <input class="login-email-input" id="magic-email" type="email" placeholder="이메일 입력" autocomplete="email" />
+    <button class="login-btn" id="magic-btn" onclick="sendMagicLink()">링크 보내기</button>
+
+    <div class="login-sent" id="login-sent" style="display:none;">
+      ✉️ 이메일을 확인해주세요!<br>
+      <span style="color:rgba(255,255,255,.5);font-size:12px;">메일함에서 링크를 클릭하면 로그인돼요</span>
+    </div>
+
+    <div id="login-error" style="display:none;margin-top:8px;font-size:12px;color:#f87171;text-align:center;"></div>
   </div>
 </div>
-
 <div class="shell">
   <!-- ─── SIDEBAR ─── -->
   <aside class="sidebar">
