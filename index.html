@@ -777,10 +777,7 @@
           <span style="font-size:10px;color:var(--gray-400);">오늘</span>
           <strong id="chip-today">0h 0m</strong>
         </div>
-        <div class="chip accent">
-          <span style="font-size:10px;opacity:.6;">이번 주 남은</span>
-          <strong id="chip-remain">40h</strong>
-        </div>
+        
       </div>
     </div>
 
@@ -847,6 +844,29 @@
 <div class="toast" id="toast"></div>
 
 <script>
+
+
+  function fmtRemainCountdown(remainHours) {
+  const totalSec = Math.max(0, Math.floor(remainHours * 3600));
+  const hh = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+  const mm = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+  const ss = String(totalSec % 60).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
+function applyFridayCountdownUI(totalH, remain) {
+  const now = new Date();
+  const isFriday = now.getDay() === 5; // 0=일 ... 5=금
+  const wkRemainEl = document.getElementById('wk-remain');
+
+  if (!wkRemainEl) return;
+
+  if (isFriday && remain > 0) {
+    wkRemainEl.innerHTML = `${fmtRemainCountdown(remain)}<small> 남음</small>`;
+  } else {
+    wkRemainEl.innerHTML = `${fmtH(remain)}<small>h</small>`;
+  }
+}
 /* ──────────────────────────────────────────
    CONSTANTS
 ────────────────────────────────────────── */
@@ -1169,7 +1189,9 @@ function renderWeekBars() {
   document.getElementById('wk-remain').innerHTML = `${fmtH(remain)}<small>h</small>`;
   document.getElementById('day-bars').innerHTML = html;
 
+  applyFridayCountdownUI(totalH, remain);
   return { totalH, remain };
+  
 }
 
 /* ──────────────────────────────────────────
@@ -1182,7 +1204,6 @@ function renderHeaderStats(totalH, remain) {
   const fill = document.getElementById('prog-fill');
   fill.className = 'prog-fill' + (pct >= 100 ? ' done' : pct > 100 ? ' over' : '');
 
-  document.getElementById('chip-remain').textContent = fmtH(remain);
 
   // Today's hours
   const today = fmtDate(new Date());
@@ -1457,7 +1478,6 @@ function tickClock() {
   // 헤더 칩 + 사이드바 (근무 중일 때 매초, 아닐 때 매분)
   if (inProgress) {
     document.getElementById('chip-today').textContent = fmtH(todayH);
-    document.getElementById('chip-remain').textContent = fmtH(remain);
     document.getElementById('wk-total').innerHTML = `${fmtH(totalH)}<small> / 40h</small>`;
     document.getElementById('wk-remain').innerHTML = `${fmtH(remain)}<small>h</small>`;
     // 진행률 바도 실시간
