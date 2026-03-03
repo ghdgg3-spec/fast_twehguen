@@ -1523,7 +1523,7 @@ function tickClock() {
   if (inProgress) {
     document.getElementById('chip-today').textContent = fmtH(todayH);
     document.getElementById('wk-total').innerHTML = `${fmtH(totalH)}<small> / 40h</small>`;
-    document.getElementById('wk-remain').innerHTML = `${fmtH(remain)}<small>h</small>`;
+    applyFridayCountdownUI(totalH, remain);
     // 진행률 바도 실시간
     const pct = Math.min(100, (totalH / WEEKLY_TARGET) * 100);
     document.getElementById('prog-fill').style.width = pct + '%';
