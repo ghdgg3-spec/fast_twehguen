@@ -225,6 +225,44 @@
     .end-result.active { opacity: 1; }
     .end-result.over { opacity: 1; }
 
+    /* ── 금요일 카운트다운 ── */
+    .friday-cd {
+      display: none;
+      margin-top: 10px;
+      background: rgba(0,0,0,.18);
+      border-radius: 8px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .friday-cd.visible { display: block; }
+    .friday-cd-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      opacity: .6;
+      color: var(--dark);
+      margin-bottom: 4px;
+    }
+    .friday-cd-time {
+      font-size: 28px;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 2px;
+      line-height: 1;
+      color: var(--dark);
+    }
+    .friday-cd-time.done {
+      font-size: 18px;
+      letter-spacing: .5px;
+    }
+    .friday-cd-sub {
+      font-size: 10px;
+      opacity: .55;
+      color: var(--dark);
+      margin-top: 4px;
+    }
+
     /* ── 오늘 상세 패널 (달력 아래) ── */
     .today-panel {
       display: none;
@@ -708,6 +746,12 @@
           <input type="time" id="target-end" value="18:00" class="end-input">
         </div>
         <div class="end-result" id="end-result">출근 기록이 있으면 계산돼요</div>
+      </div>
+      <!-- 금요일 카운트다운 -->
+      <div class="friday-cd" id="friday-cd">
+        <div class="friday-cd-label">🎉 금요일 퇴근까지</div>
+        <div class="friday-cd-time" id="friday-cd-time">--:--:--</div>
+        <div class="friday-cd-sub" id="friday-cd-sub">퇴근 예정 시간 기준</div>
       </div>
     </div>
 
@@ -1489,6 +1533,32 @@ function tickClock() {
   // 퇴근 예정 위젯 매초 업데이트
   updateEndWidget();
   updateTodayPanel();
+
+  // 금요일 카운트다운
+  const fridayCdEl = document.getElementById('friday-cd');
+  if (now.getDay() === 5) {
+    fridayCdEl.classList.add('visible');
+    const [endH, endM] = targetEndTime.split(':').map(Number);
+    const target = new Date(now);
+    target.setHours(endH, endM, 0, 0);
+    const diffSec = Math.floor((target - now) / 1000);
+    const cdTimeEl = document.getElementById('friday-cd-time');
+    const cdSubEl = document.getElementById('friday-cd-sub');
+    if (diffSec > 0) {
+      const ch = Math.floor(diffSec / 3600);
+      const cm = Math.floor((diffSec % 3600) / 60);
+      const cs = diffSec % 60;
+      cdTimeEl.textContent = `${String(ch).padStart(2,'0')}:${String(cm).padStart(2,'0')}:${String(cs).padStart(2,'0')}`;
+      cdTimeEl.classList.remove('done');
+      cdSubEl.textContent = `${targetEndTime} 기준`;
+    } else {
+      cdTimeEl.textContent = '🎊 퇴근 시간!';
+      cdTimeEl.classList.add('done');
+      cdSubEl.textContent = '수고했어요!';
+    }
+  } else {
+    fridayCdEl.classList.remove('visible');
+  }
 
   // 매분마다 전체 re-render
   if (ss === '00') renderAll();
