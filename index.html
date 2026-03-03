@@ -1536,7 +1536,9 @@ function tickClock() {
 
   // 금요일 카운트다운
   const fridayCdEl = document.getElementById('friday-cd');
-  if (now.getDay() === 5) {
+  const isFriday = now.getDay() === 5;
+  const fridayIsOff = isFriday && (isHoliday(today) || (todayLog && todayLog.type === '연차'));
+  if (isFriday && !fridayIsOff) {
     fridayCdEl.classList.add('visible');
     const [endH, endM] = targetEndTime.split(':').map(Number);
     const target = new Date(now);
@@ -1559,6 +1561,7 @@ function tickClock() {
   } else {
     fridayCdEl.classList.remove('visible');
   }
+
 
   // 매분마다 전체 re-render
   if (ss === '00') renderAll();
