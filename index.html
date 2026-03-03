@@ -970,48 +970,6 @@ async function deleteLogFromDB(ds) {
   if (error) { console.error('deleteLog error:', error); toast('삭제 실패'); }
 }
 
-let loginMode = 'signin';
-
-function toggleLoginMode() {
-  loginMode = loginMode === 'signin' ? 'signup' : 'signin';
-  const isSignup = loginMode === 'signup';
-  document.getElementById('login-desc').textContent = isSignup ? '이메일과 비밀번호로 가입하세요' : '이메일과 비밀번호로 로그인하세요';
-  document.getElementById('login-btn').textContent = isSignup ? '가입하기' : '로그인';
-  document.getElementById('login-mode-txt').textContent = isSignup ? '이미 계정이 있으신가요?' : '계정이 없으신가요?';
-  document.querySelector('[onclick="toggleLoginMode()"]').textContent = isSignup ? '로그인' : '가입하기';
-  document.getElementById('login-error').style.display = 'none';
-}
-
-async function doLogin() {
-  const email = document.getElementById('login-email').value.trim();
-  const pw = document.getElementById('login-pw').value;
-  if (!email || !pw) { showLoginError('이메일과 비밀번호를 입력해주세요'); return; }
-
-  const btn = document.getElementById('login-btn');
-  btn.disabled = true;
-
-  let result;
-  if (loginMode === 'signin') {
-    result = await sb.auth.signInWithPassword({ email, password: pw });
-  } else {
-    result = await sb.auth.signUp({ email, password: pw });
-  }
-
-  btn.disabled = false;
-
-  if (result.error) {
-    showLoginError(result.error.message);
-  } else if (loginMode === 'signup' && !result.data?.session) {
-    showLoginError('가입 확인 이메일을 확인해주세요 ✉️');
-  }
-}
-
-function showLoginError(msg) {
-  const el = document.getElementById('login-error');
-  el.textContent = msg;
-  el.style.display = 'block';
-}
-
 async function signOut() {
   await sb.auth.signOut();
   currentUser = null;
