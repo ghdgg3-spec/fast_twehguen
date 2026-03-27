@@ -132,8 +132,8 @@ ${logsToText(logs)}
         'content-type': 'application/json',
       },
       payload: JSON.stringify({
-        model: 'claude-opus-4-6',
-        max_tokens: 512,
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 256,
         system: systemPrompt,
         messages: [{ role: 'user', content: utterance }],
       }),
